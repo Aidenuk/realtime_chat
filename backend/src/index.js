@@ -6,7 +6,7 @@ import messageRoutes from "./routes/message.route.js";
 import { connectDB } from "./lib/db.js";
 import cors from "cors";
 
-dotenv.config()
+dotenv.config();
 
 const app = express();
 
