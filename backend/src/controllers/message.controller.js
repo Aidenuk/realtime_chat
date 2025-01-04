@@ -1,4 +1,5 @@
 import cloudinary from "../lib/cloudinary.js";
+import { getReceiverSocketId,io } from "../lib/socket.js";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js"
 
@@ -53,6 +54,12 @@ export const sendMessage = async(req,res) => {
       image: imageUrl,
     });
     await newMessage.save();
+
+    const receiverSocketId = getReceiverSocketId(receiverId)
+    // if a receiver is online or not
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", newMessage); // one to one chat : not using to -> group chat
+    }
 
     res.status(201).json(newMessage);
 
