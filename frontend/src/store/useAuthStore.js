@@ -85,7 +85,6 @@ export const useAuthStore = create((set,get) => ({
   connectSocket: () => {
     const {authUser} = get()
     if(!authUser || get().socket?.connect) return ;
-    //프론트로 전달
     const socket = io(BASE_URL, {
       query:{
         userId: authUser._id,

@@ -7,6 +7,8 @@ export const useChatStore = create((set,get) => ({
   messages: [],
   users: [],
   selectedUser: null,
+  senderId: null,
+  receiverId: null,
   isUsersLoading: false,
   isMessagesLoading: false,
 
@@ -27,6 +29,7 @@ export const useChatStore = create((set,get) => ({
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
       set({ messages: res.data });
+      await axiosInstance.post(`/messages/read/${userId}`);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -44,19 +47,58 @@ export const useChatStore = create((set,get) => ({
     }
   },
 
+  markMessagesAsRead: async (userId) => {
+    const { messages } = get();
+    try {
+      await axiosInstance.post(`/messages/read/${userId}`);
+      // 상태 업데이트
+      set({
+        messages: messages.map((message) =>
+          message.receiverId === userId ? { ...message, read: true } : message
+        ),
+      });
+    } catch (error) {
+      toast.error("Failed to mark messages as read");
+    }
+  },
+  
+
   subscribeToMessages: () => {
-    const {selectedUser} = get()
+    const {selectedUser,messages} = get()
     if(!selectedUser) return;
     const socket = useAuthStore.getState().socket;
     socket.on("newMessage", (newMessage) => {
+      //내가 보낸 유저만 볼 수 있게
+      const isMessageSendfFromSelectedUser = newMessage.senderId === selectedUser._id;
+      if(!isMessageSendfFromSelectedUser) return;
       set({
         messages: [...get().messages, newMessage],
       })
     })
+    // 메시지 읽음 상태 업데이트 처리
+    socket.on("messageRead", ({ senderId, receiverId }) => {
+      // 현재 대화 상대가 메시지를 읽었는지 확인
+      if (receiverId === selectedUser._id) {
+        set((state) => ({
+          messages: state.messages.map((message) =>
+            message.senderId === senderId ? { ...message, read: true } : message
+          ),
+        }));
+      }
+    });
   },
+
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage")
+  },
+
+  updateMessageReadStatus: (messageId, readStatus) => {
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        message._id === messageId ? { ...message, read: readStatus } : message
+      ),
+    }));
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),

@@ -1,32 +1,38 @@
 import React from 'react'
 import { useChatStore } from '../store/useChatStore'
-import { useEffect } from 'react'
+import { useEffect,useRef } from 'react'
 import ChatHeader from './chatHeader'
 import MessageInput from './MessageInput'
 import MessageSkeleton from './skeletons/MessageSkeleton'
 import { useAuthStore } from '../store/useAuthStore'
 import { formatMessageTime } from '../lib/utils'
-import { useRef } from 'react'
+
 
 
 const ChatContainer = () => {
-  const {messages, getMessages, isMessagesLoading, selectedUser, subscribeToMessages, unsubscribeFromMessages} = useChatStore();
+  const {messages, getMessages, isMessagesLoading, selectedUser, subscribeToMessages, unsubscribeFromMessages, markMessagesAsRead} = useChatStore();
   const {authUser} = useAuthStore();
   const messageEndRef = useRef(null);
-
-  useEffect(() => {
-    getMessages(selectedUser._id)
-    subscribeToMessages();
-
-    return () => unsubscribeFromMessages();
-
-
-  },[selectedUser._id,getMessages, subscribeToMessages, unsubscribeFromMessages])
 
   useEffect(() => {
     if(messageEndRef.current && messages)
     messageEndRef.current.scrollIntoView({behavior: "smooth"})
   },[messages]);
+
+  
+  useEffect(() => {
+    const markRead = async () => {
+      await getMessages(selectedUser._id); // 메시지를 먼저 가져옴
+      await markMessagesAsRead(selectedUser._id); // 읽음 상태를 서버에 알림
+    };
+  
+    markRead();
+    subscribeToMessages();
+
+    return () => unsubscribeFromMessages();
+
+
+  },[selectedUser._id,getMessages, subscribeToMessages, unsubscribeFromMessages, markMessagesAsRead]);
 
   if (isMessagesLoading) {
     return (
@@ -79,6 +85,12 @@ const ChatContainer = () => {
               )}
               {message.text && <p>{message.text}</p>}
             </div>
+            {/* Add Read/Unread Status */}
+      {message.senderId === authUser._id && (
+        <div className="text-xs opacity-50 mt-1 ml-1">
+          {message.read ? "읽음" : "안읽음"}
+        </div>
+      )}
           </div>
         ))}
       </div>
