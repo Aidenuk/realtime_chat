@@ -5,14 +5,74 @@ import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import { Users } from "lucide-react";
 
 const Sidebar = () => {
-  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
-
+  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, getMessages} = useChatStore();
   const {onlineUsers} = useAuthStore();
+  const [lastMessages, setLastMessages] = useState({}); // 각 사용자와의 최근 메시지 저장
+  const [unreadCounts, setUnreadCounts] = useState({}); // 각 사용자의 읽지 않은 메시지 개수 저장
 
   useEffect(() => {
+    // 사용자 목록 가져오기
     getUsers();
   }, [getUsers]);
 
+  useEffect(() => {
+    // 각 사용자와의 최근 메시지 가져오기
+    const fetchLastMessages = async () => {
+      const messagesMap = {};
+      for (const user of users) {
+        try {
+          const userMessages = await getMessages(user._id); // 개별 사용자의 메시지 가져오기
+          
+          if (userMessages && userMessages.length > 0) {
+            messagesMap[user._id] = userMessages[userMessages.length - 1]; // 마지막 메시지 저장
+          }
+        } catch (error) {
+          console.error(`Error fetching messages for user ${user._id}:`, error.message);
+        }
+      }
+      setLastMessages(messagesMap);
+    };
+
+    if (users.length > 0) {
+      fetchLastMessages();
+    }
+  }, [users, getMessages]);
+
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      const counts = {};
+      for (const user of users) {
+        try {
+          const userMessages = await getMessages(user._id); // 개별 사용자의 메시지 가져오기
+          const unreadMessages = userMessages.filter((message) => !message.read); // 읽지 않은 메시지 필터링
+          counts[user._id] = unreadMessages.length; // 읽지 않은 메시지 개수 저장
+        } catch (error) {
+          console.error(`Error fetching messages for user ${user._id}:`, error.message);
+        }
+      }
+      setUnreadCounts(counts); // 읽지 않은 메시지 개수를 상태로 업데이트
+    };
+
+    fetchUnreadCounts();
+  }, [users, getMessages]);
+
+
+  useEffect(() => {
+    const socket = useAuthStore.getState().socket;
+  
+    socket.on("newMessage", (newMessage) => {
+      setLastMessages((prevLastMessages) => ({
+        ...prevLastMessages,
+        [newMessage.senderId]: newMessage,
+      }));
+    });
+  
+    return () => {
+      socket.off("newMessage");
+    };
+  }, []);
+
+  
   if (isUsersLoading) return <SidebarSkeleton />;
 
   return (
@@ -21,10 +81,6 @@ const Sidebar = () => {
         <div className="flex items-center gap-2">
           <Users className="size-6" />
           <span className="font-medium hidden lg:block">Contacts</span>
-        </div>
-        {/* TODO: Online filter toggle */}
-        <div>
-
         </div>
       </div>
 
@@ -52,18 +108,24 @@ const Sidebar = () => {
                 />
               )}
             </div>
-      
+
             <div className="hidden lg:block text-left min-w-0">
               <div className="font-medium truncate">{user.fullName}</div>
               <div className="text-sm text-zinc-400">
                 {onlineUsers.includes(user._id) ? "Online" : "Offline"}
               </div>
+              {/* 최근 메시지 표시 */}
+              <div className="text-sm text-zinc-400 truncate">
+                {lastMessages[user._id]?.text || ""}
+              </div>
+              
             </div>
-          </button>
-        ))} 
             
-       </div>
+          </button>
+        ))}
+      </div>
     </aside>
   );
 };
+
 export default Sidebar;

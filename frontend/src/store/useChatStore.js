@@ -29,13 +29,16 @@ export const useChatStore = create((set,get) => ({
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
       set({ messages: res.data });
-      await axiosInstance.post(`/messages/read/${userId}`);
+      return res.data; // 반환 추가
     } catch (error) {
       toast.error(error.response.data.message);
+      return []; // 실패 시 빈 배열 반환
     } finally {
       set({ isMessagesLoading: false });
     }
   },
+
+  
 
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
@@ -75,6 +78,17 @@ export const useChatStore = create((set,get) => ({
         messages: [...get().messages, newMessage],
       })
     })
+
+    socket.on("newMessage", (newMessage) => {
+      if (
+        newMessage.senderId === selectedUser._id ||
+        newMessage.receiverId === selectedUser._id
+      ) {
+        set({
+          messages: [...get().messages, newMessage],
+        });
+      }
+    });
     // 메시지 읽음 상태 업데이트 처리
     socket.on("messageRead", ({ senderId, receiverId }) => {
       // 현재 대화 상대가 메시지를 읽었는지 확인
